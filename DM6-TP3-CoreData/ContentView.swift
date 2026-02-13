@@ -1,61 +1,65 @@
-//
-//  ContentView.swift
-//  DM6-TP3-CoreData
-//
-//  Created by Xavier Giguerre on 2026-02-12.
-//
-
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Environment(\.managedObjectContext) private var viewContext
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \Personne.nom, ascending: true)],
+        animation: .default)
+    private var personnes: FetchedResults<Personne>
+    @State private var showingAddPersonne = false
 
     var body: some View {
-        NavigationSplitView {
+        NavigationView {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                ForEach(personnes) { personne in
+                    NavigationLink(destination: PersonneDetailView(personne: personne)) {
+                        VStack(alignment: .leading) {
+                            Text(personne.nom ?? "Sans nom")
+                                .font(.headline)
+                            Text("Âge : \(personne.age)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
+                .onDelete(perform: deletePersonnes)
             }
+            .navigationTitle("Personnes")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     EditButton()
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingAddPersonne = true }) {
+                        Label("Ajouter", systemImage: "plus")
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .sheet(isPresented: $showingAddPersonne) {
+                AddPersonneView().environment(\.managedObjectContext, viewContext)
+            }
         }
     }
 
-    private func addItem() {
+    private func deletePersonnes(offsets: IndexSet) {
         withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+            offsets.map { personnes[$0] }.forEach(viewContext.delete)
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            do {
+                try viewContext.save()
+            } catch {
+                // Replace this implementation with code to handle the error appropriately.
+                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
+                let nsError = error as NSError
+                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
             }
         }
     }
 }
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+    }
 }
